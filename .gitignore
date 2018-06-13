@@ -21,7 +21,10 @@ $RECYCLE.BIN/
 *.asv
 *.mat
 !prior_default.mat
-
+!cl_10k.mat
+!cl_10k-paper.mat
+!cl_normalzoom.mat
+!cl_new.mat
 # =========================
 # Operating System Files
 # =========================
@@ -46,3 +49,4 @@ $RECYCLE.BIN/
 Network Trash Folder
 Temporary Items
 .apdisk
+deconvL0.mexw64

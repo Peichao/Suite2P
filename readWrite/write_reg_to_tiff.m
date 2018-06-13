@@ -1,4 +1,4 @@
-function ops = write_reg_to_tiff(fid, ops, iplane)
+function ops = write_reg_to_tiff(fid, ops, iplane, isRED)
 
 Ly = ops.Ly;
 Lx = ops.Lx;
@@ -13,7 +13,7 @@ for k = 1:length(ops.SubDirs)
     while nframesleft>0
          ix = ix + 1;
         nfrtoread = min(nframesleft, 2000);
-        data = fread(fid,  Ly*Lx*nfrtoread, '*uint16');                
+        data = fread(fid,  Ly*Lx*nfrtoread, 'int16');                
         nframesleft = nframesleft - nfrtoread;
         data = reshape(data, Ly, Lx, []);        
 
@@ -35,10 +35,17 @@ for k = 1:length(ops.SubDirs)
         if ~exist(foldr, 'dir')
             mkdir(foldr)
         end
-        partname = sprintf('%s_%s_%s_2P_plane%d_%d.tif', ops.date, ops.SubDirs{k}, ...
+        if isRED
+            partname = sprintf('%s_%s_%s_2P_plane%d_%d_RED.tif', ops.date, ops.SubDirs{k}, ...
+                ops.mouse_name, iplane, ix);
+        
+        else
+            partname = sprintf('%s_%s_%s_2P_plane%d_%d.tif', ops.date, ops.SubDirs{k}, ...
             ops.mouse_name, iplane, ix);
+                    
+        end
         fname = fullfile(foldr, partname);
         
-        TiffWriter(uint16(data),fname,bitspersamp);
+        TiffWriter(int16(data),fname,bitspersamp);
     end
 end

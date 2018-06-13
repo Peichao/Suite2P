@@ -5,9 +5,26 @@ function [frames, headers] = loadFramesBuff(tiff, firstIdx, lastIdx, stride, tem
 %   or an already open Tiff object. Optionallly FIRST, LAST and STRIDE
 %   specify the range of frame indices to load.
 
-if nargin>4
+if nargin>4 && ~isempty(temp_file)
     if ~isequal(tiff, temp_file) % do not copy if already copied
-        copyfile(tiff,temp_file);
+        % in case copying fails (server hangs)
+        iscopied = 0;
+        firstfail = 1;
+        while ~iscopied
+            try       
+                copyfile(tiff,temp_file);
+                iscopied = 1;
+                if ~firstfail
+                    fprintf('  succeeded!\n');
+                end
+            catch
+                if firstfail
+                    fprintf('copy tiff failed, retrying...');
+                end
+                firstfail = 0;
+                pause(10);
+            end
+        end
         tiff = temp_file;
     end
     info = imfinfo(temp_file); % get info after copying
@@ -66,7 +83,12 @@ if true %nargin <=4  %if the file was not copied locally use Tiff library
         frames(:,:,t) = read(tiff);
         
         if loadHeaders
+            headerNames = tiff.getTagNames;
             headers{t} = getTag(tiff, 'ImageDescription');
+            try
+                headers{t} = [headers{t} getTag(tiff,'Software')];
+            catch
+            end
         end
         
         if t < nFrames

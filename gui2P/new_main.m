@@ -32,6 +32,10 @@ set(gca, 'xcolor', 'w', 'ycolor', 'w')
 axes(h.axes4);
 set(gca, 'xtick', [], 'ytick', [])
 set(gca, 'xcolor', 'w', 'ycolor', 'w')
+axes(h.axes5);
+set(gca, 'xtick', [], 'ytick', [])
+%set(gca, 'xcolor', 'w', 'ycolor', 'w')
+ylabel('scale','fontweight','bold','fontsize',8);
 
 h.output = hObject;
 guidata(hObject, h);
@@ -86,7 +90,7 @@ else
 %     h.dat.res.lambda = reshape(h.dat.res.lambda, h.dat.cl.Ly, h.dat.cl.Lx);
     
     h.dat.ops.Nk = numel(h.dat.stat);
-    h.dat.cl.rands_orig   = .1 + .8 * rand(1, h.dat.ops.Nk);
+    h.dat.cl.rands_orig   = .1 + .65 * rand(1, h.dat.ops.Nk);
     h.dat.cl.rands        = h.dat.cl.rands_orig;
     
     if isfield(h.dat.ops, 'clustrules')
@@ -132,7 +136,7 @@ else
 end
 
 % activate all pushbuttons
-pb = [84 93 101 86 87 89 90 92 103 98 95 96 102 99 100 1 2 104];
+pb = [84 93 101 86 87 89 90 92 103 98 95 96 102 99 100 1 2 104 112];
 for j = 1:numel(pb)
     set(eval(sprintf('h.pushbutton%d', pb(j))),'Enable','on')
 end
@@ -143,6 +147,15 @@ end
 set(h.full,'Enable', 'on');
 set(h.edit50,'Enable', 'on');
 set(h.edit50,'String', num2str(h.dat.cl.threshold));
+set(h.edit52,'Enable', 'on');
+set(h.edit54,'Enable', 'on');
+set(h.edit52,'String','-Inf');
+set(h.edit54,'String','Inf');
+h.statstr = 'npix';
+h.statstrs = {'npix','cmpct','aspect_ratio','skew','std','footprint','mimgProj'};
+h.statnum = 1;
+h.statmins = -Inf*ones(1,7);
+h.statmaxs = Inf*ones(1,7);
 set_Bcolor(h, 1);
 set_maskCcolor(h, 1);
 % select unit normalized ROI brightness
@@ -163,10 +176,18 @@ h.dat.maxmap = h.dat.maxmap + 1;
 if isfield(ops, 'mimgRED') && ~isempty(ops.mimgRED)
     h.dat.mimg(:,:,h.dat.maxmap) = ops.mimgRED(ops.yrange, ops.xrange);
     h.dat.mimg_proc(:,:,h.dat.maxmap) = normalize_image(h.dat.mimg(:,:,h.dat.maxmap));
+elseif isfield(ops, 'AlignToRedChannel') && ops.AlignToRedChannel == 1 && ...
+        isfield(ops, 'mimg') && ~isempty(ops.mimg)
+    h.dat.mimg(:,:,h.dat.maxmap) = ops.mimg(ops.yrange, ops.xrange);
+    h.dat.mimg_proc(:,:,h.dat.maxmap) = normalize_image(h.dat.mimg(:,:,h.dat.maxmap));
 end
 h.dat.maxmap = h.dat.maxmap + 1;
 if isfield(ops, 'mimgREDcorrected') && ~isempty(ops.mimgREDcorrected)
-    h.dat.mimg(:,:,h.dat.maxmap) = ops.mimgREDcorrected;
+    if sum(size(ops.mimgREDcorrected)==[ops.Ly ops.Lx]) == 2
+        h.dat.mimg(:,:,h.dat.maxmap) = ops.mimgREDcorrected(ops.yrange, ops.xrange);
+    else
+        h.dat.mimg(:,:,h.dat.maxmap) = ops.mimgREDcorrected;
+    end
     h.dat.mimg_proc(:,:,h.dat.maxmap) = normalize_image(h.dat.mimg(:,:,h.dat.maxmap));
 end
 h.dat.maxmap = h.dat.maxmap + 1;
@@ -184,14 +205,7 @@ redraw_figure(h);
 guidata(hObject,h)
 end
 
-function pushbutton2_Callback(hObject, eventdata, h)
-% variance explained mask
-h.dat.cl.vmap = 'unit';
-set_maskBcolor(h, 1)
-
-redraw_figure(h);
-guidata(hObject,h);
-
+% --------------- MASK BRIGHTNESS ----------------%
 function set_maskBcolor(h, ih)
 set(h.pushbutton1, 'BackgroundColor', .94 * [1 1 1]); 
 set(h.pushbutton2, 'BackgroundColor', .94 * [1 1 1]); 
@@ -203,6 +217,14 @@ switch ih
         set(h.pushbutton1, 'BackgroundColor', [1 0 0]); 
 end
 
+function pushbutton2_Callback(hObject, eventdata, h)
+% variance explained mask
+h.dat.cl.vmap = 'unit';
+set_maskBcolor(h, 1)
+
+redraw_figure(h);
+guidata(hObject,h);
+
 function pushbutton1_Callback(hObject, eventdata, h)
 % unit vector mask
 h.dat.cl.vmap = 'var';
@@ -211,9 +233,18 @@ set_maskBcolor(h, 2)
 redraw_figure(h);
 guidata(hObject,h);
 
+% --- save proc file
 function pushbutton84_Callback(hObject, eventdata, h)
 % save proc file and rules file
 h.dat.F.trace = [];
+h=classifierFig(h);
+h=skewFig(h);
+h=meanimgFig(h);
+h=cmpctFig(h);
+h=footprintFig(h);
+h=redFig(h);
+h=ellipseFig(h);
+
 dat = h.dat;
 save([h.dat.filename(1:end-4) '_proc.mat'], 'dat')
 %
@@ -345,6 +376,8 @@ switch eventdata.Key
         pushbutton95_Callback(hObject, eventdata, h);
     case 'd'
         pushbutton96_Callback(hObject, eventdata, h);
+    case 'g'
+        pushbutton112_Callback(hObject, eventdata, h);
     case 'z'
         pushbutton102_Callback(hObject, eventdata, h);
     case 'x'
@@ -355,6 +388,7 @@ switch eventdata.Key
         pushbutton104_Callback(hObject, eventdata, h);
 end
 
+% ------------------ CELL CLICKING!! -------------------------%
 function figure1_WindowButtonDownFcn(hObject, eventdata, h)
 z = round(eventdata.Source.CurrentAxes.CurrentPoint(1,:));
 x = round(z(1));
@@ -398,8 +432,9 @@ if x>=1 && y>=1 && x<=h.dat.cl.Lx && y<=h.dat.cl.Ly && h.dat.res.iclust(y,x)>0
     redraw_figure(h);
     guidata(hObject,h);
     
-    str = [];
-    labels = [h.statLabels(2:end), {'iscell'}, {'redcell'}];
+    str = sprintf('cell #%d\n',ichosen);
+    
+    labels = [h.statLabels(2:end), {'iscell'}, {'redcell'},{'redprob'}];
     for j =1:length(labels)
        if isfield(h.dat.stat, labels{j})
            sl = eval(sprintf('h.dat.stat(ichosen).%s', labels{j}));
@@ -411,20 +446,10 @@ if x>=1 && y>=1 && x<=h.dat.cl.Lx && y<=h.dat.cl.Ly && h.dat.res.iclust(y,x)>0
    set(h.text54,'String', str);
 end
 
-function pushbutton86_Callback(hObject, eventdata, h)
 
-h.dat.procmap = 1 -  h.dat.procmap;
-if h.dat.map>1
-    redraw_meanimg(h);
-end
 
-if h.dat.procmap>0
-    set(h.pushbutton86, 'BackgroundColor', [1 0 0]); 
-else
-    set(h.pushbutton86, 'BackgroundColor', .94 * [1 1 1]); 
-end
-guidata(hObject,h);
 
+%------------------------ BACKGROUND --------------------------------%
 
 function set_Bcolor(h, ih)
 pb = [87 103 89 90 92];
@@ -439,11 +464,95 @@ for j = 1:length(pb)
     end
 end
 
+% --- roi
+function pushbutton87_Callback(hObject, eventdata, h)
+ h.dat.map = 1;
+redraw_figure(h);
+set_Bcolor(h, 1);
+guidata(hObject,h);
+
+% --- mean img
+function pushbutton89_Callback(hObject, eventdata, h)
+h.dat.map = 2;
+redraw_meanimg(h);
+set_Bcolor(h, 3);
+guidata(hObject,h);
+
+% --- mean red img
+function pushbutton90_Callback(hObject, eventdata, h)
+ h.dat.map = 3;
+ redraw_meanimg(h);
+set_Bcolor(h, 4);
+ guidata(hObject,h);
+ 
+% --- mean red - green img
+function pushbutton92_Callback(hObject, eventdata, h)
+h.dat.map = 4;
+redraw_meanimg(h);
+set_Bcolor(h, 5);
+guidata(hObject,h);
+
+% --- correlation map
+function pushbutton103_Callback(hObject, eventdata, h)
+h.dat.map = 5;
+redraw_meanimg(h);
+set_Bcolor(h, 2);
+guidata(hObject,h);
+
+% --- proc - processed images
+function pushbutton86_Callback(hObject, eventdata, h)
+h.dat.procmap = 1 -  h.dat.procmap;
+if h.dat.map>1
+    redraw_meanimg(h);
+end
+
+if h.dat.procmap>0
+    set(h.pushbutton86, 'BackgroundColor', [1 0 0]); 
+else
+    set(h.pushbutton86, 'BackgroundColor', .94 * [1 1 1]); 
+end
+guidata(hObject,h);
+
+
+%--------------------- MASK COLORS ----------------------%
+
 function set_maskCcolor(h, ih)
-pb = [98 95 96 102 99 100 104]; 
+pb = [98 95 96 102 99 100 104 112]; 
  
 set_Bcolor(h, 1)
 
+% create colormap for mask colors
+axes(h.axes5);
+cla;
+hold off;
+% if not random masks
+
+if ih > 1
+    cmap = h.dat.cl.cmap;
+    cmap = cmap(~isnan(cmap(:,1)),:);
+    [cmax,im] = max(cmap(:,1));
+    hmax = cmap(im,2);
+    [cmin,im] = min(cmap(:,1));
+    hmin = cmap(im,2);
+
+    nticks = 4;
+    hrange = linspace(hmin, hmax, 100);
+    hticks = hrange(round(linspace(1,length(hrange),nticks)));
+    for j = 1:nticks
+        [~, itick] = min(abs(cmap(:,2) - hticks(j)));
+        xticklabels{j} = sprintf('%2.2f', cmap(itick,1));
+    end
+    I = hsv2rgb(cat(3, hrange', ones(100,1), ones(100,1)));
+    imagesc(permute(I,[2 1 3]));
+    set(gca,'ytick','');
+    set(gca,'xtick', round(linspace(1,100,nticks)), 'xticklabel', xticklabels, ...
+        'fontsize', 8, 'fontweight','bold')
+    ylabel('scale','fontweight','bold','fontsize',8);
+else
+    set(gca,'ytick','','xtick','');
+    ylabel('scale','fontweight','bold','fontsize',8);
+end
+    
 for j = 1:length(pb)
     if j==ih
         set(h.(sprintf('pushbutton%d', pb(ih))), 'BackgroundColor', [1 0 0]); 
@@ -454,101 +563,142 @@ for j = 1:length(pb)
     end
 end
 
-
-function pushbutton102_Callback(hObject, eventdata, h)
-hval = [h.dat.stat.mimgProjAbs];
-h.dat.cl.rands   = .1 + .8 * min(1, hval/mean(hval));
-h.dat.cl.rands_orig = h.dat.cl.rands;
-redraw_figure(h);
-set_maskCcolor(h, 4);
-guidata(hObject,h);
-
-function pushbutton103_Callback(hObject, eventdata, h)
-h.dat.map = 5;
-redraw_meanimg(h);
-set_Bcolor(h, 2);
-guidata(hObject,h);
-
-function pushbutton96_Callback(hObject, eventdata, h)
-hval = [h.dat.stat.skew];
-h.dat.cl.rands   = .1 + .8 * min(1, hval/mean(hval));
-h.dat.cl.rands_orig = h.dat.cl.rands;
-redraw_figure(h);
-set_maskCcolor(h, 3);
-guidata(hObject,h);
-
-function pushbutton95_Callback(hObject, eventdata, h)
-h.dat.cl.rands   = .1 + .8 * [h.dat.stat.cellProb];
-h.dat.cl.rands_orig = h.dat.cl.rands;
-redraw_figure(h);
-set_maskCcolor(h, 2);
-guidata(hObject,h);
-
+% --- random
 function pushbutton98_Callback(hObject, eventdata, h)
-h.dat.cl.rands   = .1 + .8 * rand(1, h.dat.ops.Nk);
+if isfield(h.dat.cl, 'rands_orig')
+    h.dat.cl.rands = h.dat.cl.rands_orig;
+else
+    h.dat.cl.rands   = .1 + .7*rand(length(h.dat.stat), 1);
+end
 h.dat.cl.rands(logical([h.dat.stat.redcell])) = 0;
-h.dat.cl.rands_orig = h.dat.cl.rands;
-redraw_figure(h);
+I = redraw_figure(h);
 set_maskCcolor(h, 1);
 guidata(hObject,h);
 
+% --- classifier
+function pushbutton95_Callback(hObject, eventdata, h)
+h=classifierFig(h);
+guidata(hObject,h);
+
+function h = classifierFig(h)
+hval0            = [h.dat.stat.cellProb];
+hval             = .6 * (1 - hval0) + .15;
+h.dat.cl.rands   = hval;
+h.dat.cl.cmap    = [hval0(:) hval(:)]; 
+I = redraw_figure(h);
+h.dat.cl.classifierFig = I;
+set_maskCcolor(h, 2);
+
+% --- skew
+function pushbutton96_Callback(hObject, eventdata, h)
+h = skewFig(h);
+guidata(hObject,h);
+
+function h = skewFig(h)
+hval0            = [h.dat.stat.skew];
+hval             = hval0 / nanmean(hval0);
+hval             = max(0, hval - (1 - 2*nanstd(hval))) + 1;
+hval             = log(hval) / nanmean(log(hval));
+hval             = .6 * (1 - min(2*nanstd(hval)+1, hval)/(nanstd(hval)*2 + 1)) + .15;
+h.dat.cl.rands   = hval;
+h.dat.cl.cmap    = [hval0(:) hval(:)]; 
+I = redraw_figure(h);
+h.dat.cl.skewFig = I;
+set_maskCcolor(h, 3);
+
+% --- ellipse
+function pushbutton112_Callback(hObject, eventdata, h)
+h=ellipseFig(h);
+guidata(hObject,h);
+
+function h=ellipseFig(h)
+hval0            = min(5, [h.dat.stat.aspect_ratio]);
+hval             = hval0;
+hval             = hval - min(hval);
+hval             = hval / nanmean(hval);
+hval             = .6 * (1 - min(2*nanstd(hval)+1, hval)/(nanstd(hval)*2 + 1)) + .15;
+h.dat.cl.rands   = hval;
+h.dat.cl.cmap    = [hval0(:) hval(:)]; 
+I = redraw_figure(h);
+h.dat.cl.ellipseFig = I;
+set_maskCcolor(h, 8);
+
+% --- meanimg
+function pushbutton102_Callback(hObject, eventdata, h)
+h=meanimgFig(h);
+guidata(hObject,h);
+
+function h=meanimgFig(h)
+hval0            = [h.dat.stat.mimgProjAbs];
+hval             = hval0;
+hval             = hval - min(hval);
+hval             = hval / nanmean(hval);
+hval             = .6 * (1 - min(2*nanstd(hval)+1, hval)/(nanstd(hval)*2 + 1)) + .15;
+h.dat.cl.rands   = hval;
+h.dat.cl.cmap    = [hval0(:) hval(:)]; 
+I = redraw_figure(h);
+h.dat.cl.meanimgFig = I;
+set_maskCcolor(h, 4);
+
+
+% --- cmpct
 function pushbutton99_Callback(hObject, eventdata, h)
-hval = max(0, [h.dat.stat.cmpct]-1);
-h.dat.cl.rands   = .1 + .8 * min(1, .5 * hval/mean(hval));
-h.dat.cl.rands_orig = h.dat.cl.rands;
-redraw_figure(h);
+h=cmpctFig(h);
+guidata(hObject,h);
+
+function h=cmpctFig(h)
+hval0            = min(3, [h.dat.stat.cmpct]);
+hval             = hval0;
+hval             = hval - min(hval);
+hval             = hval / nanmean(hval);
+hval             = .6 * (1 - min(2*nanstd(hval)+1, hval)/(nanstd(hval)*2 + 1)) + .15;
+h.dat.cl.rands   = hval;
+h.dat.cl.cmap    = [hval0(:) hval(:)]; 
+I = redraw_figure(h);
+h.dat.cl.cmpctFig = I;
 set_maskCcolor(h, 5);
-guidata(hObject,h);
 
+% --- footprint
 function pushbutton100_Callback(hObject, eventdata, h)
-hval = [h.dat.stat.footprint];
-h.dat.cl.rands   = .1 + .8 * min(1, .5 * hval/mean(hval));
-h.dat.cl.rands_orig = h.dat.cl.rands;
-redraw_figure(h);
+h=footprintFig(h);
+guidata(hObject,h);
+
+function h=footprintFig(h)
+hval0            = [h.dat.stat.footprint];
+hval             = hval0;
+hval             = hval - min(hval);
+hval             = hval / nanmean(hval);
+hval             = .6 * (1 - min(2*nanstd(hval)+1, hval)/(nanstd(hval)*2 + 1)) + .15;
+h.dat.cl.rands   = hval;
+h.dat.cl.cmap    = [hval0(:) hval(:)]; 
+I = redraw_figure(h);
+h.dat.cl.footprintFig = I;
 set_maskCcolor(h, 6);
-guidata(hObject,h);
 
-% --- Executes on button press in pushbutton104.
+
+% --- red channel
 function pushbutton104_Callback(hObject, eventdata, h)
-hval = [h.dat.stat.redprob];
-if sum([h.dat.stat.redcell]) > 0
-   Th = min(hval(logical([h.dat.stat.redcell])));
-else
-    Th = 1;
-end
-h.dat.cl.rands   = max(0, min(1, .7 - .7*hval/Th));
-h.dat.cl.rands_orig = h.dat.cl.rands;
-redraw_figure(h);
+h=redFig(h);
+guidata(hObject,h);
+
+function h=redFig(h)
+hval0            = [h.dat.stat.redprob];
+hval             = hval0;
+hval             = hval / nanmean(hval);
+hval             = max(0, hval - (1 - 2*nanstd(hval))) + 1;
+hval             = log(hval) / nanmean(log(hval));
+hval             = .6 * (1 - min(2*nanstd(hval)+1, hval)/(nanstd(hval)*2 + 1)) + .15;
+h.dat.cl.rands   = hval;
+h.dat.cl.cmap    = [hval0(:) hval(:)]; 
+I = redraw_figure(h);
+h.dat.cl.redFig  = I;
 set_maskCcolor(h, 7);
-guidata(hObject,h);
 
 
-function pushbutton87_Callback(hObject, eventdata, h)
- h.dat.map = 1;
-redraw_figure(h);
-set_Bcolor(h, 1);
 
-guidata(hObject,h);
+% ------------------ CLASSIFIER --------------------------%
 
-function pushbutton89_Callback(hObject, eventdata, h)
-h.dat.map = 2;
-redraw_meanimg(h);
-set_Bcolor(h, 3);
-guidata(hObject,h);
-
-function pushbutton90_Callback(hObject, eventdata, h)
- h.dat.map = 3;
- redraw_meanimg(h);
-set_Bcolor(h, 4);
- guidata(hObject,h);
- 
-% RED CORRECTED BUTTON
-function pushbutton92_Callback(hObject, eventdata, h)
-h.dat.map = 4;
-redraw_meanimg(h);
-set_Bcolor(h, 5);
-guidata(hObject,h);
-
+% choose classifier? button
 function pushbutton93_Callback(hObject, eventdata, h)
 rootS2p = which('run_pipeline');
 if isempty(rootS2p)
@@ -572,6 +722,7 @@ if filename1
     guidata(hObject,h);
 end
 
+% --- threshold setting for classifier
 function edit50_Callback(hObject, eventdata, h)
 h.dat.cl.threshold = str2double(get(h.edit50,'String'));
 for j = 1:length(h.dat.stat)
@@ -592,8 +743,8 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
     set(hObject,'BackgroundColor','white');
 end
 
+% --- new classifier button
 function pushbutton101_Callback(hObject, eventdata, h)
-% new classifier button
 rootS2p = which('run_pipeline');
 if isempty(rootS2p)
     warndlg('Suite2p location not in PATH! where is run_pipeline.m?')
@@ -635,6 +786,8 @@ else
     error('you did not create a new classifier file')
 end
 
+%----------------------------- HELP SECTION ----------------------%
+
 function pushbutton64_Callback(hObject, eventdata, h)
 
 msg{1} = ['First, you need to load an F_*_*_*.mat produced by Suite2p. ']; 
@@ -656,16 +809,17 @@ msgbox(msg, 'Fluorescence instructions');
 
 function pushbutton106_Callback(hObject, eventdata, handles)
 msg{1} = ['This applies only if you select "ROIs" under "background".'];
-msg{3} = ['Selection determines the color/hue for each ROI, between 0.1 and 0.9.'];
-msg{5} = ['Reds are reserved to indicate labels made on the red/secondary color channel (middle mouse-click on an ROI to switch ON/OFF).'];
-msg{7} = ['RANDOM: color chosen randomly'];
-msg{9} = ['CLASSIFIER: probability assigned by classifier'];
+msg{3} = ['RANDOM: color chosen randomly - RED cells labelled in red (if secondary channel)'];
+msg{5} = ['*** middle mouse-click on an ROI to switch RED label ON/OFF ***'];
+msg{7} = ['for all other selections, color/hue for each ROI varies purple to yellow'];
+msg{8} = ['(scale bar for colors shown below buttons):'];
+msg{10} = ['CLASSIFIER: probability assigned by classifier'];
 msg{11} = ['SKEW: skewness of activity, after neuropil correction and some smoothing'];
-msg{13} = ['MEANIMG: weighting of activity mask onto mean image'];
-msg{15} = ['CMPCT: compactness of ROI pixels. Smallest is 1, for disks.'];
-msg{17} = ['FOOT: "footprint" of ROI; ~ number of correlated neighboring pixels'];
-msg{19} = ['RED: probability of being a red-tagged cell, assigned by algorithm'];
-msg{21} = ['hint: the letters in paranthesis are keyboard shortcuts.'];
+msg{12} = ['MEANIMG: weighting of activity mask onto mean image'];
+msg{13} = ['CMPCT: compactness of ROI pixels. Smallest is 1, for disks.'];
+msg{14} = ['FOOT: "footprint" of ROI; ~ number of correlated neighboring pixels'];
+msg{15} = ['RED: probability of being a red-tagged cell, assigned by algorithm'];
+msg{17} = ['hint: the letters in paranthesis are keyboard shortcuts.'];
 
 msgbox(msg, 'Mask color instructions');
 
@@ -706,3 +860,131 @@ msg{1} = ['Zoom in on portion of the image. Quadrants have 10% overlap.'];
 msg{3} = ['Buttons become dark grey after visiting a quadrant.'];
 
 msgbox(msg, 'ZOOM panel instructions');
+
+
+
+
+% --- Executes on selection change in popupmenu12.
+function popupmenu12_Callback(hObject, eventdata, h)
+% hObject    handle to popupmenu12 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+contents = cellstr(get(hObject,'String'));
+popstr = contents{get(hObject,'Value')};
+
+switch popstr
+    case 'number of pixels'
+        stn = 1;
+    case 'compactness'
+        stn = 2;
+    case 'aspect ratio'
+        stn = 3;
+    case 'skewness'
+        stn = 4;
+    case 'standard dev'
+        stn = 5;
+    case 'footprint'
+        stn = 6;
+    case 'meanimg proj'
+        stn = 7;
+end
+set(h.edit52,'String',num2str(h.statmins(stn)));
+set(h.edit54,'String',num2str(h.statmaxs(stn)));
+
+h.statstr = h.statstrs{stn};
+h.statnum = stn;
+
+guidata(hObject,h);
+
+% Hints: contents = cellstr(get(hObject,'String')) returns popupmenu12 contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from popupmenu12
+
+
+% --- Executes during object creation, after setting all properties.
+function popupmenu12_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to popupmenu12 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+function edit52_Callback(hObject, eventdata, h)
+% hObject    handle to edit52 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+h.statmins(h.statnum) = str2double(get(hObject,'String'));
+
+goodcells = set_thres(h.dat.stat, h.statstrs, h.statmins, h.statmaxs);
+[h.dat.stat(~goodcells).iscell] = deal(0);
+[h.dat.stat(goodcells).iscell]  = deal(1);
+
+redraw_figure(h);
+
+guidata(hObject,h);
+% Hints: get(hObject,'String') returns contents of edit52 as text
+%        str2double(get(hObject,'String')) returns contents of edit52 as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function edit52_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit52 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+
+function edit54_Callback(hObject, eventdata, h)
+% hObject    handle to edit54 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+h.statmaxs(h.statnum) = str2double(get(hObject,'String'));
+
+goodcells = set_thres(h.dat.stat, h.statstrs, h.statmins, h.statmaxs);
+[h.dat.stat(~goodcells).iscell] = deal(0);
+[h.dat.stat(goodcells).iscell]  = deal(1);
+
+redraw_figure(h);
+
+guidata(hObject,h);
+
+% Hints: get(hObject,'String') returns contents of edit54 as text
+%        str2double(get(hObject,'String')) returns contents of edit54 as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function edit54_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit54 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+function goodcells = set_thres(stat, statstrs, statmins, statmaxs)
+goodcells = true(size(stat));
+for j = 1:length(statstrs) 
+    svals = [stat.(statstrs{j})];
+    goodcells = goodcells & (svals > statmins(j) & svals < statmaxs(j));    
+end
+    
+    
+    
+
+
+
+

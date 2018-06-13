@@ -2,9 +2,15 @@ function ops = build_ops3(db, ops)
 
 ops.nplanes = getOr(ops, 'nplanes', 1);
 ops.nchannels = getOr(ops, 'nchannels', 1);
+ops.readTiffHeader = getOr(ops,'readTiffHeader',1);
+if isfield(db, 'expred')
+    if ~isempty(db.expred)
+        ops.nchannels_red = getOr(ops, 'nchannels_red', 2);
+    end
+end
 
 % ops = db;
-if ~iscell(db.mouse_name) 
+if ~iscell(db.mouse_name)
     % this is the usual case where we have a simple single session recording
     ops = addfields(ops, db);
     
@@ -22,7 +28,11 @@ if ~iscell(db.mouse_name)
     % build file list
     ops.fsroot = [];
     for j = 1:length(ops.SubDirs)
-        ops.fsroot{j} = dir(fullfile(ops.RootDir, ops.SubDirs{j}, '*.tif'));
+        ffile = dir(fullfile(ops.RootDir, ops.SubDirs{j}, '*.tif'));
+        fname = struct2cell(ffile);
+        fname = fname(1,:)';
+        [~,index] = sort_nat(fname);
+        ops.fsroot{j} = ffile(index);
         ops.fsroot{j} = cat(1, ops.fsroot{j}, ...
             dir(fullfile(ops.RootDir, ops.SubDirs{j}, '*.tiff')));
         for k = 1:length(ops.fsroot{j})
@@ -31,8 +41,12 @@ if ~iscell(db.mouse_name)
     end
     
     if isfield(db, 'expred') && ~isempty(db.expred) && ...
-            (~isfield(db, 'nchannels_red') || isempty(db.nchannels_red))            
-        ops.fsred = dir(fullfile(ops.RootDir, num2str(db.expred), '*.tif'));
+            (~isfield(db, 'nchannels_red') || isempty(db.nchannels_red))
+        ffile = dir(fullfile(ops.RootDir, num2str(db.expred), '*.tif'));
+        fname = struct2cell(ffile);
+        fname = fname(1,:)';
+        [~,index] = sort_nat(fname);
+        ops.fsred = ffile(index); 
         for k = 1:length(ops.fsroot{j})
             ops.fsred(k).name = fullfile(ops.RootDir, num2str(db.expred), ops.fsred(k).name);
         end
@@ -65,44 +79,95 @@ else
     ops.RootDir = fullfile(ops.RootStorage, ops.mouse_name, ops.date);
 end
 
-try
-    % MK code for automatically determining number of planes and channels
-    [~, header] = loadFramesBuff(ops.fsroot{1}(1).name, 1, 1, 1);
-    
-    hh=header{1};
-    str = hh(strfind(hh, 'channelsSave = '):end);
-    ind = strfind(str, 'scanimage');
-    ch = str2num(str(16 : ind(1)-1));
-    ops.nchannels = length(ch);
-    
-    fastZEnable = sscanf(hh(findstr(hh, 'fastZEnable = '):end), 'fastZEnable = %d');
-    fastZDiscardFlybackFrames = sscanf(hh(findstr(hh, 'fastZDiscardFlybackFrames = '):end), 'fastZDiscardFlybackFrames = %d');
-    if isempty(fastZDiscardFlybackFrames)
-        fastZDiscardFlybackFrames = 0;
-    end
-    stackNumSlices = sscanf(hh(findstr(hh, 'stackNumSlices = '):end), 'stackNumSlices = %d');
-    
-    ops.nplanes = 1;
-    if fastZEnable
-        ops.nplanes = stackNumSlices+fastZDiscardFlybackFrames;
-    end
-    
-    str = hh(strfind(hh, 'scanZoomFactor = '):end);
-    ind = strfind(str, 'scanimage');
-    ops.zoomMicro = str2double(str(18 : ind(1)-1));
-    
-    % get number of channels of red experiment
-    if isfield(db, 'expred') && ~isempty(db.expred) && ...
-            (~isfield(db, 'nchannels_red') || isempty(db.nchannels_red))
-        [~, header] = loadFramesBuff(ops.fsred(1).name, 1, 1, 1);
+if ops.readTiffHeader
+    try
+        % MK code for automatically determining number of planes and channels
+        [~, header] = loadFramesBuff(ops.fsroot{1}(1).name, 1, 1, 1);
+        
         hh=header{1};
+        
+        verStr = ['SI.VERSION_MAJOR = ',char(39),'2016b',char(39)];
+        
+        if contains(hh, verStr) % For scanimage 2016b, SF
+            str = hh(strfind(hh,'channelSave = '):end);
+            ind = strfind(str, 'SI');
+            ch = str2num(str(15 : ind(1)-1));
+            ops.nchannels = length(ch);
+            
+            fastZEnable = sscanf(hh(strfind(hh,'hFastZ.enable = '):end), 'hFastZ.enable = %s');
+            fastZEnable = strcmp(fastZEnable,'true');
+            fastZDiscardFlybackFrames = sscanf(hh(strfind(hh, 'hFastZ.discardFlybackFrames = '):end), 'hFastZ.discardFlybackFrames = %s');
+            fastZDiscardFlybackFrames = strcmp(fastZDiscardFlybackFrames,'true');
+            stackNumSlices = sscanf(hh(strfind(hh, 'hStackManager.numSlices = '):end), 'hStackManager.numSlices = %d');
+            
+            ops.nplanes = 1;
+            
+            if fastZEnable
+                ops.nplanes = stackNumSlices+fastZDiscardFlybackFrames;
+            end
+            
+            str = hh(strfind(hh, 'scanZoomFactor = '):end);
+            ind = strfind(str, 'SI');
+            ops.zoomMicro = str2double(str(18 : ind(1)-1));
+            
+            ops.imageRate = sscanf(hh(strfind(hh, 'scanFrameRate = '):end), 'scanFrameRate = %f');
+            
+            if isfield(db, 'expred') && ~isempty(db.expred) && ...
+                    (~isfield(db, 'nchannels_red') || isempty(db.nchannels_red))
+                [~, header] = loadFramesBuff(ops.fsred(1).name, 1, 1, 1);
+                hh=header{1};
+                str = hh(strfind(hh, 'channelSave = '):end);
+                ind = strfind(str, 'SI');
+                ch = str2num(str(15 : ind(1)-1));
+                ops.nchannels_red = length(ch);
+            end
+            
+        end
+        
+        % Old scanimage
+        
         str = hh(strfind(hh, 'channelsSave = '):end);
         ind = strfind(str, 'scanimage');
         ch = str2num(str(16 : ind(1)-1));
-        ops.nchannels_red = length(ch);
+        ops.nchannels = length(ch);
+        
+        fastZEnable = sscanf(hh(strfind(hh, 'fastZEnable = '):end), 'fastZEnable = %d');
+        fastZDiscardFlybackFrames = sscanf(hh(strfind(hh, 'fastZDiscardFlybackFrames = '):end), 'fastZDiscardFlybackFrames = %d');
+        if isempty(fastZDiscardFlybackFrames)
+            fastZDiscardFlybackFrames = 0;
+        end
+        stackNumSlices = sscanf(hh(strfind(hh, 'stackNumSlices = '):end), 'stackNumSlices = %d');
+        
+        ops.nplanes = 1;
+        if fastZEnable
+            ops.nplanes = stackNumSlices+fastZDiscardFlybackFrames;
+        end
+        
+        str = hh(strfind(hh, 'scanZoomFactor = '):end);
+        ind = strfind(str, 'scanimage');
+        ops.zoomMicro = str2double(str(18 : ind(1)-1));
+        
+        ops.imageRate = sscanf(hh(strfind(hh, 'scanFrameRate = '):end), 'scanFrameRate = %f');
+        
+        % get number of channels of red experiment
+        if isfield(db, 'expred') && ~isempty(db.expred) && ...
+                (~isfield(db, 'nchannels_red') || isempty(db.nchannels_red))
+            [~, header] = loadFramesBuff(ops.fsred(1).name, 1, 1, 1);
+            hh=header{1};
+            str = hh(strfind(hh, 'channelsSave = '):end);
+            ind = strfind(str, 'scanimage');
+            ch = str2num(str(16 : ind(1)-1));
+            ops.nchannels_red = length(ch);
+        end
+    catch
     end
-catch
 end
+if isfield(ops, 'zoomMicro')
+    ops.zoom = getOr(ops, 'zoom', ops.zoomMicro);
+else
+    ops.zoom = getOr(ops, 'zoom', 1);
+end
+
 
 if ~(isfield(ops, 'planesToProcess') && ~isempty(ops.planesToProcess))
     ops.planesToProcess = 1:ops.nplanes;
@@ -120,3 +185,7 @@ ops.CharSubDirs = CharSubDirs;
 
 ops.ResultsSavePath = sprintf('%s//%s//%s//%s//', ops.ResultsSavePath, ops.mouse_name, ops.date, ...
     CharSubDirs);
+    
+if isempty(db.expts)
+   ops.expts = [];
+end

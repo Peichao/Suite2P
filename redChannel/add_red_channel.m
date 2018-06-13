@@ -9,6 +9,7 @@ if exist(fullfile(root, fregops), 'file')
     flag = 1;
 end
 
+fclose all;
 for i = 1:length(ops.planesToProcess)
     iplane  = ops.planesToProcess(i);
     try
@@ -22,7 +23,7 @@ for i = 1:length(ops.planesToProcess)
             if ~isempty(mimgG)
                 dat.ops.mimgGREEN = mimgG(:,:,iplane);
             end
-            save(fname, 'dat')
+            save(fname, '-v7.3', '-struct', 'dat')
         catch
             fname = sprintf('%s/F_%s_%s_plane%d_Nk%d_proc.mat', ops.ResultsSavePath, ops.mouse_name, ops.date, iplane, ops.Nk);
             dat = load(fname);
@@ -33,7 +34,7 @@ for i = 1:length(ops.planesToProcess)
             if ~isempty(mimgG)
                 dat.ops.mimgGREEN = mimgG(:,:,iplane);
             end
-            save(fname, 'dat')
+            save(fname, '-v7.3', '-struct', 'dat')
         end
     catch
         fname = sprintf('%s/F_%s_%s_plane%d_Nk%d.mat', ops.ResultsSavePath, ops.mouse_name, ops.date, iplane, ops.Nk);
@@ -42,7 +43,7 @@ for i = 1:length(ops.planesToProcess)
         if ~isempty(mimgG)
             dat.ops.mimgGREEN = mimgG(:,:,iplane);
         end
-        save(fname, '-struct', 'dat')
+        save(fname, '-v7.3', '-struct', 'dat')
     end
     
     if flag 
@@ -57,7 +58,7 @@ for i = 1:length(ops.planesToProcess)
         if ~isempty(mimgG)
             dd.ops.mimgGREEN = mimgG(:,:,iplane);
         end
-        save(fname, '-struct', 'dd')
+        save(fname, '-v7.3', '-struct', 'dd')
     end
 end
 

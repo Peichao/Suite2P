@@ -42,11 +42,16 @@ for k = 1:length(fsRED)
     
     data = cat(3, D, data);    
 end
+
+
 %%
 clear mimgR
 for j = 1:ops.nplanes
-    i0 = 2 + (j-1)*2; 
-    mimgR(:,:,j) = mean(data(:,:,i0:ops.nplanes*ops.nchannels:end), 3);
+    i0 = ops.nchannels_red + (j-1)*ops.nchannels_red; 
+    %mimgR(:,:,j) = mean(data(:,:,i0:ops.nplanes*ops.nchannels:end), 3);
+    datj = data(:,:,i0:ops.nplanes*ops.nchannels_red:end);
+    ops1  = AlignIterativeKriging(datj, ops);
+    mimgR(:,:,j) = ops1.mimg;    
 end
 
 %%

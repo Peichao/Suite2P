@@ -6,7 +6,7 @@ nBasis = size(S,2);
 Nk = numel(stat);
 Ireg = diag([ones(Nk,1); zeros(nBasis,1)]);
 
-covL = [m.LtL m.LtS; m.LtS' m.StS] + 1e-4 * Ireg;
+covL = [m.LtL m.LtS; m.LtS' m.StS] + 1e-2 * Ireg;
 %%
 mimg1 = ops.mimg1(ops.yrange, ops.xrange);
 mimg1 = my_conv2(mimg1, ops.sig, [1 2]);
@@ -23,9 +23,12 @@ for k = 1:Nk
     end
 end
 %
-StU         = S' * mimg1(:);
-we          = covL \ cat(1, Ftemp, StU);
-
+if isempty(S)
+    we          = covL \ Ftemp; 
+else
+    StU         = S' * mimg1(:);
+    we          = covL \ cat(1, Ftemp, StU);
+end
 we = we(1:Nk);
 
 for j = 1:Nk

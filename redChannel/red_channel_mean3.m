@@ -42,6 +42,7 @@ end
 ntf0 = 0;
 numPlanes = ops.nplanes;
 %iplane0 = 1:1:ops.nplanes;
+
 totFrames=0;
 for k = 1:length(fsRED)
     %iplane0 = mod(iplane0-1, numPlanes) + 1;
@@ -70,7 +71,21 @@ for k = 1:length(fsRED)
         dataG0=data(:,:,planesG);
         dataR0=data(:,:,planesR);
         
-        [ds, ~]  = registration_offsets(dataG0, ops1{iPlane}, 0);
+        BiDiPhase = ops1{iPlane}.BiDiPhase;
+        if abs(BiDiPhase) > 0
+            yrange = 2:2:Ly;
+            if BiDiPhase>0
+                dataG0(yrange,(1+BiDiPhase):Lx,:,:) = dataG0(yrange, 1:(Lx-BiDiPhase),:,:);
+                dataR0(yrange,(1+BiDiPhase):Lx,:,:) = dataR0(yrange, 1:(Lx-BiDiPhase),:,:);
+            else
+                dataG0(yrange,1:Lx+BiDiPhase,:,:)   = dataG0(yrange, 1-BiDiPhase:Lx,:,:);
+                dataR0(yrange,1:Lx+BiDiPhase,:,:)   = dataR0(yrange, 1-BiDiPhase:Lx,:,:);
+            end
+        end
+        
+        [ds, ~]  = regoffKriging(dataG0, ops1{iPlane}, 0);
+        %[ds, ~]  = registration_offsets(dataG0, ops1{iPlane}, 0);
+        
         if k==1
             ds(1,:) = 0;
         end
